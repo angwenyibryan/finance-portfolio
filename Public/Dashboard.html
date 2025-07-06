@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Sentiment Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .fade-in {
+            opacity: 0;
+            animation: fadeIn 1s ease-in forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .alert-enter {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        .alert-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 300ms, transform 300ms;
+        }
+
+        .alert-exit {
+            opacity: 1;
+        }
+
+        .alert-exit-active {
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 300ms, transform 300ms;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-blue-900 text-white py-4 sticky top-0 z-50 shadow-md">
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div class="flex items-center">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='white'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z'/></svg>"
+                    alt="Logo" class="mr-2">
+                <h1 class="text-2xl font-bold">Sentiment Dashboard</h1>
+            </div>
+            <nav>
+                <ul class="flex space-x-6">
+                    <li><a href="/" class="hover:text-yellow-300 transition-colors duration-200">Home</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Dashboard Content -->
+    <section class="py-12">
+        <div class="container mx-auto px-4 fade-in">
+            <h1 class="text-4xl font-bold mb-8 text-blue-900">Financial Sentiment Dashboard</h1>
+
+            <!-- Filters -->
+            <div class="mb-8 flex flex-col md:flex-row md:space-x-4">
+                <div class="mb-4 md:mb-0">
+                    <label class="mr-2 text-gray-700 font-semibold">Asset:</label>
+                    <input id="asset-input" type="text" placeholder="Enter asset (e.g., AAPL, BTC)"
+                        list="asset-suggestions"
+                        class="border p-3 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 w-full md:w-64" />
+                    <datalist id="asset-suggestions">
+                        <option value="AAPL">Apple (AAPL)</option>
+                        <option value="BTC">Bitcoin (BTC)</option>
+                        <option value="TSLA">Tesla (TSLA)</option>
+                        <option value="GOOGL">Google (GOOGL)</option>
+                        <option value="ETH">Ethereum (ETH)</option>
+                    </datalist>
+                </div>
+                <div class="mb-4ORKmd:mb-0">
+                    <label class="mr-2 text-gray-700 font-semibold">Source:</label>
+                    <select id="source-filter"
+                        class="border p-3 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                        <option value="all">All Sources</option>
+                        <option value="X">X Posts</option>
+                        <option value="News">News Articles</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mr-2 text-gray-700 font-semibold">Time Range:</label>
+                    <select id="time-range"
+                        class="border p-3 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                        <option value="1h">Last Hour</option>
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Alerts -->
+            <div id="alerts" class="mb-8"></div>
+
+            <!-- Tabs -->
+            <div class="mb-8">
+                <button id="real-time-tab"
+                    class="px-4 py-2 text-blue-900 font-semibold border-b-2 border-blue-600">Real-Time</button>
+                <button id="historical-tab"
+                    class="px-4 py-2 text-gray-600 font-semibold hover:text-blue-900">Historical</button>
+            </div>
+
+            <!-- Content -->
+            <div id="loading" class="text-gray-600 hidden">
+                <span class="spinner mr-2"></span>Loading...
+            </div>
+            <div id="no-data" class="text-gray-600 hidden">No data available for the selected asset.</div>
+            <div id="real-time-content">
+                <canvas id="sentiment-chart" class="w-full h-96 mb-8"></canvas>
+                <canvas id="source-chart" class="w-full h-64 mb-8"></canvas>
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 text-blue-900">Latest Sentiment</h2>
+                    <p id="latest-score" class="text-gray-600">Score: N/A</p>
+                    <p id="latest-source" class="text-gray-600">Source: N/A</p>
+                </div>
+            </div>
+            <div id="historical-content" class="hidden">
+                <canvas id="historical-chart" class="w-full h-96 mb-8"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <script type="text/babel">
+        const SentimentDashboard = () => {
+            const [asset, setAsset] = React.useState('AAPL');
+            const [sourceFilter, setSourceFilter] = React.useState('all');
+            const [timeRange, setTimeRange] = React.useState('1h');
+            const [sentimentData, setSentimentData] = React.useState([]);
+            const [historicalData, setHistoricalData] = React.useState([]);
+            const [loading, setLoading] = React.useState(false);
+            const [alerts, setAlerts] = React.useState([]);
+            const sentimentChartRef = React.useRef(null);
+            const sourceChartRef = React.useRef(null);
+            const historicalChartRef = React.useRef(null);
+            const [activeTab, setActiveTab] = React.useState('real-time');
+
+            // Debounced fetch function
+            const debouncedFetch = React.useMemo(
+                () =>
+                    _.debounce((asset, source, time, isHistorical, callback) => {
+                        setLoading(true);
+                        const url = isHistorical
+                            ? `http://localhost:3000/api/sentiment/history`
+                            : `http://localhost:3000/api/sentiment?asset=${asset}`;
+                        const params = isHistorical ? { asset } : {};
+                        if (isHistorical && time !== 'all') {
+                            const now = new Date();
+                            const startDate = new Date(now - {
+                                '1h': 3600000,
+                                '24h': 86400000,
+                                '7d': 604800000,
+                            }[time]);
+                            params.startDate = startDate.toISOString();
+                            params.endDate = now.toISOString();
+                        }
+                        axios.get(url, { params })
+                            .then(response => {
+                                let data = response.data;
+                                if (source !== 'all') {
+                                    data = data.filter(item => item.source === source);
+                                }
+                                callback(data);
+                                setLoading(false);
+                            })
+                            .catch(error => {
+                                console.error(`Error fetching ${isHistorical ? 'historical' : 'sentiment'} data:`, error);
+                                callback([]);
+                                setLoading(false);
+                            });
+                    }, 500),
+                []
+            );
+
+            // Fetch real-time data
+            React.useEffect(() => {
+                if (asset && asset.length >= 2) {
+                    debouncedFetch(asset, sourceFilter, timeRange, false, setSentimentData);
+                }
+            }, [asset, sourceFilter, timeRange]);
+
+            // Fetch historical data
+            React.useEffect(() => {
+                if (activeTab === 'historical' && asset && asset.length >= 2) {
+                    debouncedFetch(asset, sourceFilter, timeRange, true, setHistoricalData);
+                }
+            }, [asset, sourceFilter, timeRange, activeTab]);
+
+            // Check for alerts
+            const checkForAlerts = React.useCallback((data) => {
+                if (data.length < 2) return;
+                const latestScore = data[data.length - 1].score;
+                const previousScore = data[data.length - 2].score;
+                if (Math.abs(latestScore - previousScore) > 0.5) {
+                    setAlerts(prev => {
+                        const newAlert = {
+                            id: Date.now(),
+                            message: `Significant sentiment shift for ${asset}: ${latestScore.toFixed(2)} (${data[data.length - 1].source})`,
+                        };
+                        const updatedAlerts = [...prev, newAlert].slice(-3); // Limit to 3 alerts
+                        setTimeout(() => {
+                            setAlerts(current => current.filter(alert => alert.id !== newAlert.id));
+                        }, 5000);
+                        return updatedAlerts;
+                    });
+                }
+            }, [asset]);
+
+            // Render charts
+            React.useEffect(() => {
+                const loadingEl = document.getElementById('loading');
+                const noDataEl = document.getElementById('no-data');
+                const realTimeContent = document.getElementById('real-time-content');
+                const historicalContent = document.getElementById('historical-content');
+                const latestScoreEl = document.getElementById('latest-score');
+                const latestSourceEl = document.getElementById('latest-source');
+
+                if (loading) {
+                    loadingEl.classList.remove('hidden');
+                    noDataEl.classList.add('hidden');
+                    realTimeContent.classList.add('hidden');
+                    historicalContent.classList.add('hidden');
+                    return;
+                }
+
+                loadingEl.classList.add('hidden');
+                if (activeTab === 'real-time') {
+                    realTimeContent.classList.remove('hidden');
+                    historicalContent.classList.add('hidden');
+                    if (sentimentData.length === 0 || !asset || asset.length < 2) {
+                        noDataEl.classList.remove('hidden');
+                        realTimeContent.classList.add('hidden');
+                        latestScoreEl.textContent = 'Score: N/A';
+                        latestSourceEl.textContent = 'Source: N/A';
+                        return;
+                    }
+
+                    noDataEl.classList.add('hidden');
+                    latestScoreEl.textContent = `Score: ${sentimentData[sentimentData.length - 1].score.toFixed(2)}`;
+                    latestSourceEl.textContent = `Source: ${sentimentData[sentimentData.length - 1].source}`;
+
+                    // Sentiment Line Chart
+                    if (sentimentChartRef.current) {
+                        const ctx = sentimentChartRef.current.getContext('2d');
+                        if (sentimentChartRef.current.chart) {
+                            sentimentChartRef.current.chart.destroy();
+                        }
+                        sentimentChartRef.current.chart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: sentimentData.map(data => new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+                                datasets: [{
+                                    label: `Sentiment Score for ${asset}`,
+                                    data: sentimentData.map(data => data.score),
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                }],
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: { min: -1, max: 1, title: { display: true, text: 'Sentiment Score' } },
+                                    x: { title: { display: true, text: 'Time' } },
+                                },
+                                plugins: {
+                                    tooltip: { mode: 'index', intersect: false },
+                                    legend: { display: true },
+                                },
+                            },
+                        });
+                    }
+
+                    // Source Bar Chart
+                    if (sourceChartRef.current) {
+                        const ctx = sourceChartRef.current.getContext('2d');
+                        if (sourceChartRef.current.chart) {
+                            sourceChartRef.current.chart.destroy();
+                        }
+                        const sources = ['X', 'News'];
+                        const avgScores = sources.map(source => {
+                            const filtered = sentimentData.filter(data => data.source === source);
+                            return filtered.length ? filtered.reduce((sum, item) => sum + item.score, 0) / filtered.length : 0;
+                        });
+                        sourceChartRef.current.chart = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: sources,
+                                datasets: [{
+                                    label: 'Average Sentiment by Source',
+                                    data: avgScores,
+                                    backgroundColor: ['#3b82f6', '#f59e0b'],
+                                    borderColor: ['#3b82f6', '#f59e0b'],
+                                    borderWidth: 1,
+                                }],
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: { min: -1, max: 1, title: { display: true, text: 'Average Sentiment Score' } },
+                                },
+                                plugins: {
+                                    tooltip: { mode: 'index', intersect: false },
+                                    legend: { display: true },
+                                },
+                            },
+                        });
+                    }
+                } else {
+                    realTimeContent.classList.add('hidden');
+                    historicalContent.classList.remove('hidden');
+                    if (historicalData.length === 0 || !asset || asset.length < 2) {
+                        noDataEl.classList.remove('hidden');
+                        historicalContent.classList.add('hidden');
+                        return;
+                    }
+
+                    noDataEl.classList.add('hidden');
+                    if (historicalChartRef.current) {
+                        const ctx = historicalChartRef.current.getContext('2d');
+                        if (historicalChartRef.current.chart) {
+                            historicalChartRef.current.chart.destroy();
+                        }
+                        historicalChartRef.current.chart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: historicalData.map(data => new Date(data.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })),
+                                datasets: [{
+                                    label: `Historical Sentiment for ${asset}`,
+                                    data: begin: historicalData.map(data => data.score),
+                                    borderColor: '#3b82f6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                }],
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: { min: -1, max: 1, title: { display: true, text: 'Sentiment Score' } },
+                                    x: { title: { display: true, text: 'Date' } },
+                                },
+                                plugins: {
+                                    tooltip: { mode: 'index', intersect: false },
+                                    legend: { display: true },
+                                },
+                            },
+                        });
+                    }
+                }
+            }, [sentimentData, historicalData, loading, activeTab, asset]);
+
+            // Handle filters and tabs
+            React.useEffect(() => {
+                const assetInput = document.getElementById('asset-input');
+                const sourceFilter = document.getElementById('source-filter');
+                const timeRange = document.getElementById('time-range');
+                const realTimeTab = document.getElementById('real-time-tab');
+                const historicalTab = document.getElementById('historical-tab');
+
+                const handleAssetChange = (e) => {
+                    const value = e.target.value.toUpperCase().trim();
+                    if (value.length >= 2) {
+                        setAsset(value);
+                    }
+                };
+                const handleSourceChange = (e) => setSourceFilter(e.target.value);
+                const handleTimeChange = (e) => setTimeRange(e.target.value);
+                const handleTabChange = (tab) => {
+                    setActiveTab(tab);
+                    realTimeTab.classList.toggle('border-blue-600', tab === 'real-time');
+                    realTimeTab.classList.toggle('text-blue-900', tab === 'real-time');
+                    realTimeTab.classList.toggle('text-gray-600', tab !== 'real-time');
+                    historicalTab.classList.toggle('border-blue-600', tab === 'historical');
+                    historicalTab.classList.toggle('text-blue-900', tab === 'historical');
+                    historicalTab.classList.toggle('text-gray-600', tab !== 'historical');
+                };
+
+                assetInput.addEventListener('change', handleAssetChange);
+                sourceFilter.addEventListener('change', handleSourceChange);
+                timeRange.addEventListener('change', handleTimeChange);
+                realTimeTab.addEventListener('click', () => handleTabChange('real-time'));
+                historicalTab.addEventListener('click', () => handleTabChange('historical'));
+
+                return () => {
+                    assetInput.removeEventListener('change', handleAssetChange);
+                    sourceFilter.removeEventListener('change', handleSourceChange);
+                    timeRange.removeEventListener('change', handleTimeChange);
+                    realTimeTab.removeEventListener('click', () => handleTabChange('real-time'));
+                    historicalTab.removeEventListener('click', () => handleTabChange('historical'));
+                };
+            }, []);
+
+            // Render alerts
+            React.useEffect(() => {
+                checkForAlerts(sentimentData);
+                const alertsContainer = document.getElementById('alerts');
+                alertsContainer.innerHTML = '';
+                alerts.forEach(alert => {
+                    const alertEl = document.createElement('div');
+                    alertEl.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 alert-enter';
+                    alertEl.textContent = alert.message;
+                    alertsContainer.appendChild(alertEl);
+                    setTimeout(() => alertEl.className = alertEl.className.replace('alert-enter', 'alert-enter-active'), 10);
+                    setTimeout(() => {
+                        alertEl.className = alertEl.className.replace('alert-enter-active', 'alert-exit');
+                        setTimeout(() => {
+                            alertEl.className = alertEl.className.replace('alert-exit', 'alert-exit-active');
+                            setTimeout(() => alertEl.remove(), 300);
+                        }, 300);
+                    }, 5000);
+                });
+            }, [alerts, sentimentData, checkForAlerts]);
+
+            return null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SentimentDashboard />);
+    </script>
+</body>
+
+</html>
